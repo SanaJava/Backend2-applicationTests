@@ -17,11 +17,20 @@ import org.springframework.test.context.support.TestPropertySourceUtils;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders;
+import org.springframework.web.client.RestTemplate;
 import org.testcontainers.containers.MySQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
+import se.nackademin.java20.lab1.application.PersonalFinanceService;
+import se.nackademin.java20.lab1.domain.Account;
+import se.nackademin.java20.lab1.domain.UserService;
+import se.nackademin.java20.lab1.persistance.AccountRepository;
+import se.nackademin.java20.lab1.risk.RestRiskAssessment;
 
 import static com.github.tomakehurst.wiremock.client.WireMock.*;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 import static org.springframework.util.MimeTypeUtils.APPLICATION_JSON;
 
@@ -56,7 +65,20 @@ class Lab1ApplicationTests {
 
     @Test
     void shouldOpenAccountWhenRiskAssessmentPasses() throws Exception {
-        //TODO
+        wireMockServer.stubFor(get(urlEqualTo("/risk/sana")).willReturn(aResponse()
+                .withStatus(HttpStatus.OK.value())
+                .withHeader("content-type", APPLICATION_JSON.toString())
+                .withBody("{\"pass\": true}")));
+        final RestRiskAssessment restRiskAssessment = new RestRiskAssessment(new RestTemplate(), wireMockServer.baseUrl());
+        final AccountRepository accountRepository = mock(AccountRepository.class);
+        when(accountRepository.save(any(Account.class))).thenAnswer(invocationOnMock -> invocationOnMock.getArguments()[0]);
+
+        final UserService userService = mock(UserService.class);
+        doNothing().when(userService).enroll(any(), any());
+
+        final PersonalFinanceService service = new PersonalFinanceService(accountRepository, restRiskAssessment, userService);
+        Account account = service.openAccount("sana", "password");
+        assertNotNull(account);
     }
 
 
